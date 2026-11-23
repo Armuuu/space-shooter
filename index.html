@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05030f">
+<title>Space Shooter</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#eaf2ff;--glow:#7df9ff;--hot:#ff7a3d;--panel:rgba(10,8,32,.74)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none}
+html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;touch-action:none;font-family:'Orbitron',system-ui,sans-serif;color:var(--ink)}
+#game{position:relative;width:100%;max-width:480px;height:100%;height:100dvh;margin:0 auto;overflow:hidden;background:radial-gradient(ellipse at 50% 15%,#1b1152,#05030f 70%) center/cover no-repeat}
+#game.shake{animation:shake .4s}
+@keyframes shake{25%{transform:translate(-6px,3px)}50%{transform:translate(6px,-3px)}75%{transform:translate(-4px,2px)}}
+
+/* moving stars (background ke upar halka sa effect) */
+#stars{position:absolute;inset:0;opacity:.4;pointer-events:none;background-image:radial-gradient(1.5px 1.5px at 20px 30px,#fff,transparent),radial-gradient(1px 1px at 95px 125px,#fffc,transparent),radial-gradient(1.5px 1.5px at 150px 65px,#fff,transparent);background-size:190px 190px;animation:drift 9s linear infinite}
+@keyframes drift{to{background-position:0 190px}}
+
+/* score box */
+#hud{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);right:12px;z-index:5;min-width:120px;border:2px solid var(--glow);border-radius:10px;background:var(--panel);box-shadow:0 0 14px rgba(125,249,255,.35);overflow:hidden;font-weight:700;pointer-events:none}
+#hud div{display:flex;justify-content:space-between;gap:14px;padding:6px 10px;font-size:13px}
+#hud div+div{border-top:1px solid rgba(125,249,255,.4)}
+#hud b{color:var(--glow)}
+
+/* rocket / asteroid / bullet */
+#rocket{position:absolute;left:0;top:0;z-index:3;border-radius:14px;border:2px solid rgba(255,255,255,.5);background:linear-gradient(#e3e9ff,#6f7cff) center/contain no-repeat;will-change:transform}
+.ast{position:absolute;left:0;top:0;z-index:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#a39890,#4a423d 60%,#241f1c) center/cover no-repeat;box-shadow:inset -6px -8px 14px rgba(0,0,0,.55),0 0 12px rgba(255,160,90,.25);will-change:transform}
+.bullet{position:absolute;left:0;top:0;z-index:2;width:8px;height:22px;border-radius:50% 50% 0 0 / 35% 35% 0 0;background:linear-gradient(#fff,#ffe27a 45%,#ff8a2a);box-shadow:0 0 8px #ffb347,0 7px 14px rgba(255,120,40,.7);will-change:transform}
+.boom{position:absolute;z-index:4;border-radius:50%;pointer-events:none;background:radial-gradient(circle,#fff 0,#ffe27a 22%,#ff7a3d 48%,rgba(255,60,0,0) 70%);animation:boom .5s ease-out forwards}
+@keyframes boom{from{transform:scale(.2);opacity:1}to{transform:scale(1.7);opacity:0}}
+
+/* joystick (left) + fire (right) */
+#joy{position:absolute;left:18px;bottom:calc(env(safe-area-inset-bottom,0px) + 28px);z-index:6;width:120px;height:120px;border-radius:50%;border:2px solid rgba(125,249,255,.6);background:rgba(125,249,255,.08);display:grid;place-items:center;touch-action:none}
+#knob{width:50px;height:50px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#bff8ff,#2bb8d6);box-shadow:0 0 14px rgba(125,249,255,.7);transition:transform .12s ease-out}
+#knob.drag{transition:none}
+#fire{position:absolute;right:22px;bottom:calc(env(safe-area-inset-bottom,0px) + 42px);z-index:6;width:92px;height:92px;border-radius:50%;border:2px solid rgba(255,122,61,.85);background:rgba(255,122,61,.14);display:grid;place-items:center;touch-action:none;transition:transform .08s,background .08s}
+#fire i{width:14px;height:34px;border-radius:50% 50% 0 0 / 35% 35% 0 0;background:linear-gradient(#fff,#ffb347 50%,#ff5a1f);box-shadow:0 0 10px #ff8a2a}
+#fire.on{background:rgba(255,122,61,.42);transform:scale(.94)}
+
+/* play / game end screens */
+.overlay{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:24px;transition:opacity .3s}
+.overlay.hidden{opacity:0;pointer-events:none}
+.card{width:min(82%,320px);padding:22px;border:2px solid var(--glow);border-radius:18px;background:var(--panel);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 0 30px rgba(125,249,255,.3);text-align:center}
+.card h2{margin:0 0 14px;font-size:28px;font-weight:900;color:var(--hot);text-shadow:0 0 14px rgba(255,122,61,.6)}
+.card p{margin:8px 0;font-size:17px;font-weight:500}
+.card p b{color:var(--glow);font-weight:900}
+.card .new{color:#ffe27a;font-weight:700;font-size:14px}
+.btn{display:block;width:100%;margin-top:18px;padding:16px 10px;font:900 20px 'Orbitron',system-ui,sans-serif;letter-spacing:.14em;color:#05030f;background:linear-gradient(#9ffcff,#2bb8d6);border:2px solid #fff;border-radius:12px;box-shadow:0 0 18px rgba(125,249,255,.6);cursor:pointer;touch-action:manipulation}
+.card > .btn:first-child{margin-top:0}
+.btn:active{transform:scale(.96)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<div id="game">
+  <div id="stars"></div>
+
+  <div id="hud">
+    <div>Best <b id="best">0</b></div>
+    <div>Score <b id="score">0</b></div>
+  </div>
+
+  <div id="rocket"></div>
+
+  <div id="joy"><div id="knob"></div></div>
+  <div id="fire"><i></i></div>
+
+  <!-- PLAY screen -->
+  <div class="overlay" id="startScr">
+    <div class="card"><button class="btn" id="playBtn">PLAY</button></div>
+  </div>
+
+  <!-- GAME END screen -->
+  <div class="overlay hidden" id="endScr">
+    <div class="card">
+      <h2>Game End</h2>
+      <p>Score: <b id="endScore">0</b></p>
+      <p>Best: <b id="endBest">0</b></p>
+      <p class="new" id="newBest" hidden>New best score!</p>
+      <button class="btn" id="againBtn">PLAY AGAIN</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== CONFIG: yaha apni files ke link lagao ===================== */
+const IMG = {
+  background: '',          // BACKGROUND image ka link
+  rocket:     'tarannum.jpg',          // ROCKET ka image
+  asteroid:   'arman.jpg',          // ASTEROID ka image (ye gol gol ghumegi)
+  rocketFit:  'contain'    // 'cover' likhoge to image rocket box me poori bhar jayegi
+};
+const AUDIO = {
+  click: 'click.mp3',               // PLAY aur PLAY AGAIN button ki audio
+  fire:  'fire.mp3',               // bullet fire hone ki audio
+  blast: 'blast.mp3'                // bullet asteroid se takraye tab ki audio (rocket udne par bhi yahi bajegi)
+};
+const POINTS = 2;          // ek asteroid udane par kitne points
+const ROCKET_BOTTOM = 170; // rocket niche se kitna upar rahe (px)
+/* ================================================================================ */
+
+const $ = id => document.getElementById(id);
+const game = $('game'), rocketEl = $('rocket'), joy = $('joy'), knob = $('knob'), fireBtn = $('fire');
+const scoreEl = $('score'), bestEl = $('best');
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+
+/* images */
+if (IMG.background) game.style.backgroundImage = `url("${IMG.background}")`;
+if (IMG.rocket) {
+  rocketEl.style.backgroundImage = `url("${IMG.rocket}")`;
+  rocketEl.style.backgroundSize = IMG.rocketFit;
+  rocketEl.style.border = 'none';
+}
+
+/* audio */
+const sfx = {};
+Object.keys(AUDIO).forEach(k => { if (AUDIO[k]) { sfx[k] = new Audio(AUDIO[k]); sfx[k].preload = 'auto'; } });
+const play = k => { if (sfx[k]) sfx[k].cloneNode().play().catch(() => {}); };
+
+/* best score (localStorage) */
+const KEY = 'spaceShooterBest';
+let best = 0;
+try { best = parseInt(localStorage.getItem(KEY)) || 0; } catch (e) {}
+bestEl.textContent = best;
+
+/* state */
+let W, H, rw, rh, rx, vel = 0, input = 0;
+let state = 'idle';            // idle -> play -> over
+let score = 0, last = 0, spawnT = 0, lastShot = 0, fireHeld = false;
+const asts = [], bullets = [], keys = {};
+const ry = () => H - rh - ROCKET_BOTTOM;
+const maxSpeed = () => Math.max(380, W * 1.05);
+
+function resize() {
+  W = game.clientWidth; H = game.clientHeight;
+  rw = clamp(W * 0.17, 54, 84); rh = rw * 1.3;
+  rocketEl.style.width = rw + 'px'; rocketEl.style.height = rh + 'px';
+  rx = clamp(rx ?? (W - rw) / 2, 0, W - rw);
+}
+
+/* ---------- joystick ---------- */
+let joyId = null, joyCx = 0, joyCy = 0;
+const JR = 35; // knob kitna door ja sakta hai
+function moveJoy(e) {
+  let dx = e.clientX - joyCx, dy = e.clientY - joyCy;
+  const d = Math.hypot(dx, dy);
+  if (d > JR) { dx *= JR / d; dy *= JR / d; }
+  knob.style.transform = `translate(${dx}px,${dy}px)`;
+  const v = dx / JR;
+  input = Math.abs(v) < 0.08 ? 0 : v;
+}
+joy.addEventListener('pointerdown', e => {
+  joyId = e.pointerId; joy.setPointerCapture(e.pointerId);
+  const r = joy.getBoundingClientRect(); joyCx = r.left + r.width / 2; joyCy = r.top + r.height / 2;
+  knob.classList.add('drag'); moveJoy(e);
+});
+joy.addEventListener('pointermove', e => { if (e.pointerId === joyId) moveJoy(e); });
+const endJoy = e => {
+  if (e.pointerId !== joyId) return;
+  joyId = null; input = 0; knob.classList.remove('drag'); knob.style.transform = '';
+};
+joy.addEventListener('pointerup', endJoy);
+joy.addEventListener('pointercancel', endJoy);
+
+/* ---------- fire button ---------- */
+fireBtn.addEventListener('pointerdown', e => {
+  fireBtn.setPointerCapture(e.pointerId); fireBtn.classList.add('on'); fireHeld = true; shoot();
+});
+['pointerup', 'pointercancel'].forEach(t => fireBtn.addEventListener(t, () => {
+  fireHeld = false; fireBtn.classList.remove('on');
+}));
+
+/* keyboard (sirf desktop pe test karne ke liye) */
+const kName = e => e.key.length === 1 ? e.key.toLowerCase() : e.key;
+addEventListener('keydown', e => { keys[kName(e)] = true; if (e.key === ' ') e.preventDefault(); });
+addEventListener('keyup', e => { keys[kName(e)] = false; });
+addEventListener('contextmenu', e => e.preventDefault());
+
+/* ---------- game objects ---------- */
+function shoot(now = performance.now()) {
+  if (state !== 'play' || now - lastShot < 230) return;
+  lastShot = now;
+  const el = document.createElement('div'); el.className = 'bullet'; game.appendChild(el);
+  bullets.push({ el, x: rx + rw / 2 - 4, y: ry() - 12 });
+  play('fire');
+}
+
+function spawnAst() {
+  const s = rand(Math.max(44, W * 0.13), W * 0.22);
+  const el = document.createElement('div'); el.className = 'ast';
+  el.style.width = el.style.height = s + 'px';
+  if (IMG.asteroid) el.style.backgroundImage = `url("${IMG.asteroid}")`;
+  game.appendChild(el);
+  const base = state === 'play' ? 120 + Math.min(score, 300) * 1.1 : 70; // score badhne par speed badhti hai
+  asts.push({
+    el, s, x: rand(0, W - s), y: -s,
+    v: base * (H / 800) * rand(0.85, 1.25),
+    rot: rand(0, 360), spin: rand(18, 45) * (Math.random() < 0.5 ? -1 : 1) // dheere dheere ghumegi
+  });
+}
+
+function boom(cx, cy, size) {
+  const el = document.createElement('div'); el.className = 'boom';
+  el.style.cssText = `left:${cx - size / 2}px;top:${cy - size / 2}px;width:${size}px;height:${size}px`;
+  el.addEventListener('animationend', () => el.remove());
+  game.appendChild(el);
+}
+
+/* ---------- start / end ---------- */
+function start() {
+  play('click');
+  [...asts, ...bullets].forEach(o => o.el.remove());
+  asts.length = 0; bullets.length = 0;
+  score = 0; scoreEl.textContent = 0; vel = 0; spawnT = 700;
+  rx = (W - rw) / 2;
+  rocketEl.style.visibility = 'visible';
+  $('startScr').classList.add('hidden'); $('endScr').classList.add('hidden');
+  state = 'play';
+}
+
+function gameOver() {
+  state = 'over'; fireHeld = false; input = 0; vel = 0;
+  rocketEl.style.visibility = 'hidden';
+  boom(rx + rw / 2, ry() + rh / 2, rw * 2.6); play('blast');
+  game.classList.add('shake'); setTimeout(() => game.classList.remove('shake'), 400);
+  bullets.forEach(b => b.el.remove()); bullets.length = 0;
+
+  const isNew = score > best;
+  if (isNew) { best = score; try { localStorage.setItem(KEY, best); } catch (e) {} }
+  bestEl.textContent = best;
+  $('endScore').textContent = score; $('endBest').textContent = best;
+  $('newBest').hidden = !isNew;
+  setTimeout(() => $('endScr').classList.remove('hidden'), 700);
+}
+$('playBtn').addEventListener('click', start);
+$('againBtn').addEventListener('click', start);
+
+/* ---------- main loop ---------- */
+function frame(t) {
+  const dt = Math.min(0.05, (t - last) / 1000 || 0); last = t;
+  const playing = state === 'play';
+
+  /* rocket: smooth left-right, screen ke bahar nahi jayega */
+  if (playing) {
+    const kdir = (keys.ArrowRight || keys.d ? 1 : 0) - (keys.ArrowLeft || keys.a ? 1 : 0);
+    const target = (joyId !== null ? input : kdir) * maxSpeed();
+    vel += (target - vel) * (1 - Math.exp(-12 * dt));
+    rx += vel * dt;
+    if (rx < 0) { rx = 0; vel = 0; } else if (rx > W - rw) { rx = W - rw; vel = 0; }
+    if (fireHeld || keys[' ']) shoot(t);
+  }
+  if (state !== 'over') {
+    rocketEl.style.transform = `translate(${rx}px,${ry()}px) rotate(${vel / maxSpeed() * 8}deg)`;
+  }
+
+  /* asteroids spawn */
+  spawnT += dt * 1000;
+  const gap = playing ? Math.max(420, 1000 - score * 4) : 1100;
+  if (spawnT > gap) { spawnT = -rand(0, gap * 0.4); spawnAst(); }
+
+  /* asteroids move + rotate */
+  for (let i = asts.length - 1; i >= 0; i--) {
+    const a = asts[i];
+    a.y += a.v * dt; a.rot += a.spin * dt;
+    if (a.y > H + 10) { a.el.remove(); asts.splice(i, 1); continue; }
+    a.el.style.transform = `translate(${a.x}px,${a.y}px) rotate(${a.rot}deg)`;
+  }
+
+  /* bullets move + hit check */
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.y -= H * 0.95 * dt;
+    if (b.y < -30) { b.el.remove(); bullets.splice(i, 1); continue; }
+    b.el.style.transform = `translate(${b.x}px,${b.y}px)`;
+    for (let j = asts.length - 1; j >= 0; j--) {
+      const a = asts[j], r = a.s / 2;
+      const dx = b.x + 4 - (a.x + r), dy = b.y + 3 - (a.y + r);
+      if (dx * dx + dy * dy < (r * 0.92 + 4) ** 2) {
+        boom(a.x + r, a.y + r, a.s * 1.4); play('blast');
+        a.el.remove(); asts.splice(j, 1);
+        b.el.remove(); bullets.splice(i, 1);
+        score += POINTS; scoreEl.textContent = score;
+        break;
+      }
+    }
+  }
+
+  /* asteroid vs rocket (hitbox thoda chhota rakha hai taaki unfair na lage) */
+  if (playing) {
+    const px = rx + rw * 0.1, py = ry() + rh * 0.08, pw = rw * 0.8, ph = rh * 0.88;
+    for (const a of asts) {
+      const r = a.s / 2 * 0.88, cx = a.x + a.s / 2, cy = a.y + a.s / 2;
+      const nx = clamp(cx, px, px + pw), ny = clamp(cy, py, py + ph);
+      if ((cx - nx) ** 2 + (cy - ny) ** 2 < r * r) { gameOver(); break; }
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+resize();
+addEventListener('resize', resize);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
